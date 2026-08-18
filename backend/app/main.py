@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import copy
 import shutil
+import threading
 import uuid
 from pathlib import Path
 
@@ -26,8 +28,9 @@ UPLOADS.mkdir(parents=True, exist_ok=True)
 RESULTS.mkdir(parents=True, exist_ok=True)
 
 JOBS: dict[str, dict] = {}
+JOBS_LOCK = threading.Lock()
 
-app = FastAPI(title="台灣 3+3 郵遞區號查詢", version="0.4.0")
+app = FastAPI(title="台灣 3+3 郵遞區號查詢", version="0.5.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -43,13 +46,84 @@ class LookupRequest(BaseModel):
     use_post_ws: bool = True
 
 
+def _blank_stats() -> dict:
+    return {
+        "total": 0,
+        "done": 0,
+        "success": 0,
+        "needs_review": 0,
+        "not_found": 0,
+        "failed": 0,
+        "exact": 0,
+        "district": 0,
+        "address_column": None,
+        "name_column": None,
+    }
+
+
+def _update_job(job_id: str, **fields) -> None:
+    with JOBS_LOCK:
+        job = JOBS.get(job_id)
+        if not job:
+            return
+        job.update(fields)
+
+
+def _run_job(
+    job_id: str,
+    upload_path: Path,
+    filename: str,
+    address_column: str | None,
+    name_column: str | None,
+) -> None:
+    _update_job(job_id, status="processing")
+    try:
+        columns, rows = read_table(upload_path)
+        if len(rows) > MAX_ROWS:
+            raise ValueError(f"最多 {MAX_ROWS} 筆，目前 {len(rows)} 筆")
+
+        _update_job(
+            job_id,
+            progress={"done": 0, "total": len(rows)},
+            stats={**_blank_stats(), "total": len(rows)},
+        )
+
+        def on_progress(payload: dict) -> None:
+            _update_job(
+                job_id,
+                progress={"done": payload["done"], "total": payload["total"]},
+                stats=payload["stats"],
+                anomalies=payload["anomalies"],
+            )
+
+        out_columns, out_rows, job_stats, anomalies = enrich_rows(
+            columns,
+            rows,
+            address_column,
+            name_column,
+            on_progress=on_progress,
+        )
+        out_path = resolve_output_path(filename, job_id, RESULTS)
+        write_table(out_columns, out_rows, out_path)
+        _update_job(
+            job_id,
+            status="completed",
+            result_file=out_path.name,
+            progress={"done": job_stats["total"], "total": job_stats["total"]},
+            stats=job_stats,
+            anomalies=anomalies,
+        )
+    except Exception as exc:  # noqa: BLE001
+        _update_job(job_id, status="failed", error=str(exc))
+
+
 @app.get("/api/health")
 def health():
     meta = stats()
     return {
         "ok": True,
         "service": "tw-zipcode-saas",
-        "version": "0.4.0",
+        "version": "0.5.0",
         "street_rules": meta["street_rules"],
         "bulk_rules": meta["bulk_rules"],
         "post_ws": True,
@@ -82,42 +156,47 @@ async def create_job(
     with upload_path.open("wb") as f:
         shutil.copyfileobj(file.file, f)
 
-    try:
-        columns, rows = read_table(upload_path)
-        if len(rows) > MAX_ROWS:
-            raise HTTPException(400, f"最多 {MAX_ROWS} 筆，目前 {len(rows)} 筆")
-        out_columns, out_rows, stats = enrich_rows(columns, rows, address_column, name_column)
-        out_path = resolve_output_path(file.filename, job_id, RESULTS)
-        write_table(out_columns, out_rows, out_path)
-    except HTTPException:
-        raise
-    except Exception as exc:  # noqa: BLE001
-        raise HTTPException(400, str(exc)) from exc
-
-    JOBS[job_id] = {
+    job = {
         "id": job_id,
-        "status": "completed",
+        "status": "queued",
         "filename": file.filename,
-        "result_file": str(out_path.name),
-        "stats": stats,
+        "result_file": None,
+        "progress": {"done": 0, "total": 0},
+        "stats": _blank_stats(),
+        "anomalies": [],
+        "error": None,
     }
-    return JOBS[job_id]
+    with JOBS_LOCK:
+        JOBS[job_id] = job
+
+    thread = threading.Thread(
+        target=_run_job,
+        args=(job_id, upload_path, file.filename, address_column, name_column),
+        daemon=True,
+    )
+    thread.start()
+    return job
 
 
 @app.get("/api/jobs/{job_id}")
 def get_job(job_id: str):
-    job = JOBS.get(job_id)
-    if not job:
-        raise HTTPException(404, "找不到任務")
-    return job
+    with JOBS_LOCK:
+        job = JOBS.get(job_id)
+        if not job:
+            raise HTTPException(404, "找不到任務")
+        return copy.deepcopy(job)
 
 
 @app.get("/api/jobs/{job_id}/download")
 def download_job(job_id: str):
-    job = JOBS.get(job_id)
-    if not job:
-        raise HTTPException(404, "找不到任務")
-    path = RESULTS / job["result_file"]
+    with JOBS_LOCK:
+        job = JOBS.get(job_id)
+        if not job:
+            raise HTTPException(404, "找不到任務")
+        if job.get("status") != "completed" or not job.get("result_file"):
+            raise HTTPException(400, "任務尚未完成")
+        result_name = job["result_file"]
+    path = RESULTS / result_name
     if not path.exists():
         raise HTTPException(404, "結果檔不存在")
     return FileResponse(path, filename=path.name)

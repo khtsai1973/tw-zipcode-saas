@@ -3,22 +3,24 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>3+3 郵遞區號查詢</title>
+  <title>3+3 郵遞區號｜批次地址處理</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;600;700&family=IBM+Plex+Sans:wght@500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --ink: #1a2332;
-      --muted: #5c6b7a;
-      --paper: #f7f4ef;
-      --card: #ffffff;
-      --accent: #0b6e4f;
-      --accent-2: #c45c26;
-      --line: #d9d2c5;
-      --ok: #0b6e4f;
-      --warn: #b86e00;
-      --bad: #b42318;
+      --ink: #14231c;
+      --muted: #5a6b62;
+      --paper: #eef3ef;
+      --panel: #f8fbf8;
+      --accent: #0f6a4c;
+      --accent-deep: #0a4d38;
+      --line: #c9d6ce;
+      --ok: #0f6a4c;
+      --review: #9a6400;
+      --miss: #8a3b2f;
+      --fail: #6b2430;
+      --shadow: 0 18px 40px rgba(20, 35, 28, 0.08);
     }
     * { box-sizing: border-box; }
     body {
@@ -26,30 +28,92 @@
       font-family: "Noto Sans TC", sans-serif;
       color: var(--ink);
       background:
-        radial-gradient(ellipse 80% 50% at 10% -10%, #dceee6 0%, transparent 55%),
-        radial-gradient(ellipse 60% 40% at 100% 0%, #f3e2d4 0%, transparent 50%),
+        linear-gradient(165deg, rgba(15, 106, 76, 0.10) 0%, transparent 42%),
+        linear-gradient(340deg, rgba(138, 90, 40, 0.08) 0%, transparent 38%),
+        radial-gradient(circle at 85% 12%, #d7e8de 0%, transparent 45%),
         var(--paper);
       min-height: 100vh;
     }
-    .wrap { max-width: 920px; margin: 0 auto; padding: 40px 20px 72px; }
-    header h1 {
-      font-family: "IBM Plex Sans", "Noto Sans TC", sans-serif;
-      font-size: clamp(1.8rem, 4vw, 2.4rem);
-      margin: 0 0 8px;
-      letter-spacing: -0.02em;
+    .wrap { max-width: 960px; margin: 0 auto; padding: 36px 20px 80px; }
+
+    .hero {
+      padding: 12px 0 28px;
+      animation: rise 0.55s ease both;
     }
-    header p { margin: 0 0 28px; color: var(--muted); line-height: 1.6; }
+    .brand {
+      font-family: "Fraunces", "Noto Sans TC", serif;
+      font-size: clamp(2rem, 5vw, 2.85rem);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      margin: 0 0 18px;
+      line-height: 1.15;
+      color: var(--accent-deep);
+    }
+    .hero h1 {
+      font-size: clamp(1.35rem, 3.2vw, 1.75rem);
+      font-weight: 700;
+      margin: 0 0 12px;
+      line-height: 1.35;
+      max-width: 18em;
+    }
+    .hero .lead {
+      margin: 0 0 22px;
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 1.02rem;
+      max-width: 36em;
+    }
+
+    .upload-zone {
+      border: 1.5px dashed #9bb5a6;
+      border-radius: 18px;
+      background: rgba(248, 251, 248, 0.92);
+      padding: 22px;
+      display: grid;
+      gap: 14px;
+      box-shadow: var(--shadow);
+      transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+    }
+    .upload-zone.dragover {
+      border-color: var(--accent);
+      background: #eef7f2;
+      transform: translateY(-1px);
+    }
+    .upload-zone .file-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+    .file-name {
+      color: var(--muted);
+      font-size: 0.92rem;
+      min-height: 1.4em;
+    }
+    .file-name.has-file { color: var(--ink); font-weight: 500; }
+
     .panel {
-      background: var(--card);
+      background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: 16px;
+      border-radius: 18px;
       padding: 22px;
       margin-bottom: 18px;
-      box-shadow: 0 10px 30px rgba(26, 35, 50, 0.04);
+      box-shadow: var(--shadow);
+      animation: rise 0.55s ease both;
     }
-    .panel h2 { margin: 0 0 14px; font-size: 1.05rem; }
+    .panel h2 {
+      margin: 0 0 14px;
+      font-size: 1.05rem;
+      font-weight: 700;
+    }
+    .panel.secondary {
+      background: transparent;
+      box-shadow: none;
+      border-style: dashed;
+    }
+
     label { display: block; font-size: 0.9rem; margin-bottom: 6px; color: var(--muted); }
-    input[type="text"], input[type="file"] {
+    input[type="text"] {
       width: 100%;
       padding: 12px 14px;
       border: 1px solid var(--line);
@@ -58,9 +122,11 @@
       background: #fff;
       margin-bottom: 12px;
     }
+    input[type="file"] { display: none; }
     .row { display: grid; grid-template-columns: 1fr 2fr; gap: 12px; }
     @media (max-width: 640px) { .row { grid-template-columns: 1fr; } }
-    button {
+
+    button, .btn {
       appearance: none;
       border: 0;
       background: var(--accent);
@@ -70,24 +136,177 @@
       padding: 12px 18px;
       border-radius: 999px;
       cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.15s ease, transform 0.15s ease;
     }
-    button.secondary { background: #2f3b4a; }
-    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    button:hover, .btn:hover { background: var(--accent-deep); }
+    button.secondary, .btn.secondary { background: #2a3a32; }
+    button.ghost, .btn.ghost {
+      background: transparent;
+      color: var(--accent-deep);
+      border: 1px solid var(--line);
+    }
+    button:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
     .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+    /* Dashboard */
+    #dashboard {
+      display: none;
+      margin-top: 18px;
+      animation: rise 0.4s ease both;
+    }
+    #dashboard.show { display: block; }
+
+    .progress-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .progress-label {
+      font-weight: 600;
+      font-size: 1rem;
+    }
+    .progress-count {
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      font-size: 1.15rem;
+      letter-spacing: 0.02em;
+    }
+    .bar {
+      height: 10px;
+      border-radius: 999px;
+      background: #d8e4dc;
+      overflow: hidden;
+      margin-bottom: 18px;
+    }
+    .bar > span {
+      display: block;
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #0f6a4c, #1d8f68);
+      border-radius: inherit;
+      transition: width 0.25s ease;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    @media (max-width: 720px) {
+      .stats { grid-template-columns: repeat(2, 1fr); }
+    }
+    .stat {
+      padding: 14px 12px;
+      border-radius: 14px;
+      background: #fff;
+      border: 1px solid var(--line);
+      text-align: center;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .stat .n {
+      font-variant-numeric: tabular-nums;
+      font-size: 1.55rem;
+      font-weight: 700;
+      line-height: 1.1;
+      margin-bottom: 4px;
+    }
+    .stat .k { font-size: 0.82rem; color: var(--muted); }
+    .stat.success .n { color: var(--ok); }
+    .stat.review .n { color: var(--review); }
+    .stat.miss .n { color: var(--miss); }
+    .stat.fail .n { color: var(--fail); }
+    .stat.pulse { animation: pulse 0.35s ease; }
+
+    .dash-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      user-select: none;
+      cursor: pointer;
+      color: var(--ink);
+      font-size: 0.92rem;
+      font-weight: 500;
+    }
+    .toggle input { accent-color: var(--accent); width: 16px; height: 16px; }
+
+    .status-msg {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin: 0 0 10px;
+      min-height: 1.3em;
+    }
+    .status-msg.error { color: var(--fail); }
+
+    .anomaly-wrap {
+      display: none;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      overflow: hidden;
+      background: #fff;
+      max-height: 360px;
+      overflow-y: auto;
+    }
+    .anomaly-wrap.show { display: block; animation: rise 0.3s ease both; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid #e4ebe6;
+      vertical-align: top;
+    }
+    th {
+      position: sticky;
+      top: 0;
+      background: #f0f5f1;
+      font-weight: 600;
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+    tr:last-child td { border-bottom: 0; }
+    .pill {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+    .pill.needs_review { background: #fff3d6; color: var(--review); }
+    .pill.not_found { background: #f8e4e0; color: var(--miss); }
+    .pill.failed { background: #f3d6dc; color: var(--fail); }
+
     .result {
       margin-top: 14px;
       padding: 14px 16px;
       border-radius: 12px;
-      background: #f3f7f5;
+      background: #eef6f1;
       border: 1px dashed #b7d0c4;
       display: none;
     }
     .result.show { display: block; }
     .zip {
-      font-family: "IBM Plex Sans", monospace;
+      font-family: "Fraunces", monospace;
       font-size: 1.8rem;
       font-weight: 600;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.06em;
       color: var(--accent);
     }
     .meta { color: var(--muted); font-size: 0.92rem; margin-top: 6px; line-height: 1.5; }
@@ -100,20 +319,81 @@
       vertical-align: middle;
     }
     .tag.exact { background: #d8f3e7; color: var(--ok); }
-    .tag.district { background: #fff0d6; color: var(--warn); }
-    .tag.not_found { background: #fde2e0; color: var(--bad); }
-    .hint { font-size: 0.85rem; color: var(--muted); margin-top: 10px; }
+    .tag.district { background: #fff0d6; color: var(--review); }
+    .tag.not_found { background: #fde2e0; color: var(--miss); }
+    .hint { font-size: 0.85rem; color: var(--muted); margin-top: 10px; line-height: 1.55; }
     footer { margin-top: 28px; color: var(--muted); font-size: 0.82rem; line-height: 1.6; }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: none; }
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      40% { transform: scale(1.04); }
+      100% { transform: scale(1); }
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <header>
-      <h1>3+3 郵遞區號查詢</h1>
-      <p>單筆一鍵查詢，或上傳 CSV / Excel / ODS 批次補上 3+3 郵遞區號。輸入需含名稱與地址欄位，其餘欄位原樣保留。</p>
+    <header class="hero">
+      <p class="brand">3+3 郵遞區號</p>
+      <h1>大量地址不用逐筆查詢</h1>
+      <p class="lead">上傳 Excel / CSV，自動進行地址正規化、3+3郵遞區號查詢與結果標記，完成後直接下載處理結果。</p>
+
+      <div class="upload-zone" id="dropZone">
+        <div class="file-row">
+          <button type="button" id="pickBtn">選擇檔案</button>
+          <button type="button" id="uploadBtn" disabled>開始處理</button>
+          <span class="file-name" id="fileName">支援 .csv / .xlsx / .xls / .ods，最多 1,000 筆</span>
+          <input id="file" type="file" accept=".csv,.xlsx,.xls,.ods" />
+        </div>
+        <p class="hint" style="margin:0">需含名稱與地址欄位；其餘欄位原樣保留。輸出會多「正規化地址」「3+3郵遞區號」「查詢狀態」。</p>
+      </div>
+
+      <div id="dashboard" class="panel" style="margin-top:18px; margin-bottom:0">
+        <div class="progress-head">
+          <span class="progress-label" id="progressLabel">處理中</span>
+          <span class="progress-count"><span id="doneCount">0</span> / <span id="totalCount">0</span></span>
+        </div>
+        <div class="bar"><span id="progressBar"></span></div>
+
+        <div class="stats">
+          <div class="stat success" id="statSuccess"><div class="n">0</div><div class="k">成功</div></div>
+          <div class="stat review" id="statReview"><div class="n">0</div><div class="k">需確認</div></div>
+          <div class="stat miss" id="statMiss"><div class="n">0</div><div class="k">查無資料</div></div>
+          <div class="stat fail" id="statFail"><div class="n">0</div><div class="k">失敗</div></div>
+        </div>
+
+        <p class="status-msg" id="jobStatusMsg"></p>
+
+        <div class="dash-actions">
+          <label class="toggle">
+            <input type="checkbox" id="anomalyOnly" />
+            只看異常資料
+          </label>
+          <a class="btn" id="downloadLink" href="#" style="display:none">下載結果檔</a>
+        </div>
+
+        <div class="anomaly-wrap" id="anomalyWrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:4rem">列</th>
+                <th style="width:7rem">狀態</th>
+                <th style="width:8rem">名稱</th>
+                <th>地址</th>
+                <th style="width:7rem">3+3</th>
+              </tr>
+            </thead>
+            <tbody id="anomalyBody"></tbody>
+          </table>
+        </div>
+      </div>
     </header>
 
-    <section class="panel">
+    <section class="panel secondary">
       <h2>單筆查詢</h2>
       <div class="row">
         <div>
@@ -126,23 +406,10 @@
         </div>
       </div>
       <div class="actions">
-        <button id="lookupBtn" type="button">一鍵查詢</button>
-        <button class="secondary" id="sampleBtn" type="button">填入範例</button>
+        <button id="lookupBtn" type="button" class="secondary">一鍵查詢</button>
+        <button class="ghost" id="sampleBtn" type="button">填入範例</button>
       </div>
       <div class="result" id="lookupResult"></div>
-      <p class="hint">查詢順序：正規化 → 大宗專用郵遞區號 → 中華郵政 → 本地路段。大宗表在 backend/data/bulk_zipcodes.json。</p>
-    </section>
-
-    <section class="panel">
-      <h2>檔案批次查詢（ETL）</h2>
-      <label for="file">上傳檔案（.csv / .xlsx / .xls / .ods，最多 1000 筆）</label>
-      <input id="file" type="file" accept=".csv,.xlsx,.xls,.ods" />
-      <div class="actions">
-        <button id="uploadBtn" type="button">上傳並查詢</button>
-        <a id="downloadLink" href="#" style="display:none"></a>
-      </div>
-      <div class="result" id="jobResult"></div>
-      <p class="hint">輸出會多「正規化地址」「3+3郵遞區號」「查詢狀態」欄，格式盡量與上傳相同（.xls 會輸出 .xlsx）。</p>
     </section>
 
     <footer>
@@ -167,6 +434,22 @@
       "花蓮縣花蓮市中山路17號",
     ];
 
+    const fileInput = document.getElementById("file");
+    const fileNameEl = document.getElementById("fileName");
+    const uploadBtn = document.getElementById("uploadBtn");
+    const pickBtn = document.getElementById("pickBtn");
+    const dropZone = document.getElementById("dropZone");
+    const dashboard = document.getElementById("dashboard");
+    const anomalyOnly = document.getElementById("anomalyOnly");
+    const anomalyWrap = document.getElementById("anomalyWrap");
+    const anomalyBody = document.getElementById("anomalyBody");
+    const downloadLink = document.getElementById("downloadLink");
+    const jobStatusMsg = document.getElementById("jobStatusMsg");
+
+    let pollTimer = null;
+    let lastStats = {};
+    let latestAnomalies = [];
+
     function statusTag(status, source) {
       const map = { exact: "精確", district: "行政區", not_found: "查無" };
       let label = map[status] || status;
@@ -174,6 +457,193 @@
       const cls = source === "bulk" ? "exact" : status;
       return `<span class="tag ${cls}">${label}</span>`;
     }
+
+    function setStat(el, value) {
+      const n = el.querySelector(".n");
+      const next = String(value ?? 0);
+      if (n.textContent !== next) {
+        n.textContent = next;
+        el.classList.remove("pulse");
+        void el.offsetWidth;
+        el.classList.add("pulse");
+      }
+    }
+
+    function renderDashboard(job) {
+      const progress = job.progress || {};
+      const stats = job.stats || {};
+      const done = progress.done ?? stats.done ?? 0;
+      const total = progress.total ?? stats.total ?? 0;
+      const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+
+      document.getElementById("doneCount").textContent = done.toLocaleString("zh-TW");
+      document.getElementById("totalCount").textContent = total.toLocaleString("zh-TW");
+      document.getElementById("progressBar").style.width = pct + "%";
+
+      setStat(document.getElementById("statSuccess"), stats.success ?? stats.exact ?? 0);
+      setStat(document.getElementById("statReview"), stats.needs_review ?? stats.district ?? 0);
+      setStat(document.getElementById("statMiss"), stats.not_found ?? 0);
+      setStat(document.getElementById("statFail"), stats.failed ?? 0);
+
+      lastStats = stats;
+      latestAnomalies = job.anomalies || [];
+      renderAnomalies();
+
+      const label = document.getElementById("progressLabel");
+      if (job.status === "queued") {
+        label.textContent = "排隊中";
+        jobStatusMsg.className = "status-msg";
+        jobStatusMsg.textContent = "檔案已上傳，準備開始處理…";
+        downloadLink.style.display = "none";
+      } else if (job.status === "processing") {
+        label.textContent = "處理中";
+        jobStatusMsg.className = "status-msg";
+        jobStatusMsg.textContent = `已處理 ${done.toLocaleString("zh-TW")} / ${total.toLocaleString("zh-TW")} 筆`;
+        downloadLink.style.display = "none";
+      } else if (job.status === "completed") {
+        label.textContent = "處理完成";
+        jobStatusMsg.className = "status-msg";
+        const addr = stats.address_column ? `地址欄：${stats.address_column}` : "";
+        const name = stats.name_column ? `名稱欄：${stats.name_column}` : "";
+        jobStatusMsg.textContent = [addr, name].filter(Boolean).join("　") || "可下載完整結果檔";
+        downloadLink.href = `/api/jobs/${job.id}/download`;
+        downloadLink.style.display = "inline-flex";
+      } else if (job.status === "failed") {
+        label.textContent = "處理失敗";
+        jobStatusMsg.className = "status-msg error";
+        jobStatusMsg.textContent = job.error || "任務失敗";
+        downloadLink.style.display = "none";
+      }
+    }
+
+    function renderAnomalies() {
+      const show = anomalyOnly.checked;
+      anomalyWrap.classList.toggle("show", show);
+      if (!show) return;
+      if (!latestAnomalies.length) {
+        anomalyBody.innerHTML = `<tr><td colspan="5" class="meta">目前沒有異常資料</td></tr>`;
+        return;
+      }
+      anomalyBody.innerHTML = latestAnomalies.map((row) => `
+        <tr>
+          <td>${row.row}</td>
+          <td><span class="pill ${row.category || ""}">${row.status || ""}</span></td>
+          <td>${escapeHtml(row.name || "—")}</td>
+          <td>${escapeHtml(row.address || row.normalized || "—")}</td>
+          <td>${escapeHtml(row.zipcode || "—")}</td>
+        </tr>
+      `).join("");
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+    }
+
+    function stopPoll() {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    }
+
+    async function pollJob(jobId) {
+      const res = await fetch(`/api/jobs/${jobId}`);
+      const job = await res.json();
+      if (!res.ok) throw new Error(job.detail || "無法取得任務狀態");
+      renderDashboard(job);
+      if (job.status === "completed" || job.status === "failed") {
+        stopPoll();
+        uploadBtn.disabled = !fileInput.files.length;
+        pickBtn.disabled = false;
+      }
+    }
+
+    function setSelectedFile(file) {
+      if (!file) {
+        fileNameEl.textContent = "支援 .csv / .xlsx / .xls / .ods，最多 1,000 筆";
+        fileNameEl.classList.remove("has-file");
+        uploadBtn.disabled = true;
+        return;
+      }
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      fileInput.files = dt.files;
+      fileNameEl.textContent = file.name;
+      fileNameEl.classList.add("has-file");
+      uploadBtn.disabled = false;
+    }
+
+    pickBtn.onclick = () => fileInput.click();
+    fileInput.onchange = () => setSelectedFile(fileInput.files[0] || null);
+
+    ;["dragenter", "dragover"].forEach((evt) => {
+      dropZone.addEventListener(evt, (e) => {
+        e.preventDefault();
+        dropZone.classList.add("dragover");
+      });
+    });
+    ;["dragleave", "drop"].forEach((evt) => {
+      dropZone.addEventListener(evt, (e) => {
+        e.preventDefault();
+        dropZone.classList.remove("dragover");
+      });
+    });
+    dropZone.addEventListener("drop", (e) => {
+      const file = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (file) setSelectedFile(file);
+    });
+
+    anomalyOnly.onchange = renderAnomalies;
+
+    uploadBtn.onclick = async () => {
+      if (!fileInput.files.length) return;
+      const fd = new FormData();
+      fd.append("file", fileInput.files[0]);
+      stopPoll();
+      uploadBtn.disabled = true;
+      pickBtn.disabled = true;
+      dashboard.classList.add("show");
+      anomalyOnly.checked = false;
+      latestAnomalies = [];
+      renderAnomalies();
+      downloadLink.style.display = "none";
+      document.getElementById("progressLabel").textContent = "上傳中";
+      document.getElementById("doneCount").textContent = "0";
+      document.getElementById("totalCount").textContent = "…";
+      document.getElementById("progressBar").style.width = "0%";
+      setStat(document.getElementById("statSuccess"), 0);
+      setStat(document.getElementById("statReview"), 0);
+      setStat(document.getElementById("statMiss"), 0);
+      setStat(document.getElementById("statFail"), 0);
+      jobStatusMsg.className = "status-msg";
+      jobStatusMsg.textContent = "正在上傳檔案…";
+
+      try {
+        const res = await fetch("/api/jobs", { method: "POST", body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail));
+        renderDashboard(data);
+        await pollJob(data.id);
+        pollTimer = setInterval(() => {
+          pollJob(data.id).catch((err) => {
+            stopPoll();
+            jobStatusMsg.className = "status-msg error";
+            jobStatusMsg.textContent = err.message;
+            uploadBtn.disabled = !fileInput.files.length;
+            pickBtn.disabled = false;
+          });
+        }, 400);
+      } catch (err) {
+        jobStatusMsg.className = "status-msg error";
+        jobStatusMsg.textContent = err.message;
+        uploadBtn.disabled = !fileInput.files.length;
+        pickBtn.disabled = false;
+      }
+    };
 
     document.getElementById("sampleBtn").onclick = () => {
       const i = Math.floor(Math.random() * samples.length);
@@ -205,45 +675,6 @@
       } catch (err) {
         box.className = "result show";
         box.innerHTML = `<div class="meta">${err.message}</div>`;
-      } finally {
-        btn.disabled = false;
-      }
-    };
-
-    document.getElementById("uploadBtn").onclick = async () => {
-      const fileInput = document.getElementById("file");
-      const btn = document.getElementById("uploadBtn");
-      const box = document.getElementById("jobResult");
-      const link = document.getElementById("downloadLink");
-      if (!fileInput.files.length) {
-        box.className = "result show";
-        box.innerHTML = `<div class="meta">請先選擇檔案</div>`;
-        return;
-      }
-      const fd = new FormData();
-      fd.append("file", fileInput.files[0]);
-      btn.disabled = true;
-      try {
-        const res = await fetch("/api/jobs", { method: "POST", body: fd });
-        const data = await res.json();
-        if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail));
-        const s = data.stats || {};
-        box.className = "result show";
-        box.innerHTML = `
-          <div class="meta">
-            任務完成：共 ${s.total ?? 0} 筆（精確 ${s.exact ?? 0} / 行政區 ${s.district ?? 0} / 查無 ${s.failed ?? 0}）<br/>
-            地址欄：${s.address_column || "—"}　名稱欄：${s.name_column || "—"}
-          </div>`;
-        link.href = `/api/jobs/${data.id}/download`;
-        link.textContent = "下載結果檔";
-        link.style.display = "inline-block";
-        link.style.marginLeft = "8px";
-        link.style.color = "var(--accent)";
-        link.style.fontWeight = "600";
-      } catch (err) {
-        box.className = "result show";
-        box.innerHTML = `<div class="meta">${err.message}</div>`;
-        link.style.display = "none";
       } finally {
         btn.disabled = false;
       }
