@@ -322,6 +322,43 @@
     .tag.district { background: #fff0d6; color: var(--review); }
     .tag.not_found { background: #fde2e0; color: var(--miss); }
     .hint { font-size: 0.85rem; color: var(--muted); margin-top: 10px; line-height: 1.55; }
+    .norm-help {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+    }
+    .norm-help summary {
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.92rem;
+      color: var(--accent-deep);
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .norm-help summary::-webkit-details-marker { display: none; }
+    .norm-help summary::before {
+      content: "▸";
+      color: var(--accent);
+      transition: transform 0.15s ease;
+    }
+    .norm-help[open] summary::before { transform: rotate(90deg); }
+    .norm-help .body {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.65;
+    }
+    .norm-help ul {
+      margin: 8px 0 0;
+      padding-left: 1.15em;
+    }
+    .norm-help li { margin-bottom: 4px; }
+    .norm-help .ex {
+      color: var(--ink);
+      font-variant-numeric: tabular-nums;
+    }
     footer { margin-top: 28px; color: var(--muted); font-size: 0.82rem; line-height: 1.6; }
 
     @keyframes rise {
@@ -350,6 +387,26 @@
           <input id="file" type="file" accept=".csv,.xlsx,.xls,.ods" />
         </div>
         <p class="hint" style="margin:0">需含名稱與地址欄位；其餘欄位原樣保留。輸出會多「正規化地址」「3+3郵遞區號」「查詢狀態」。</p>
+
+        <details class="norm-help">
+          <summary>「正規化地址」做了哪些處理？</summary>
+          <div class="body">
+            查詢前會先清洗地址，結果寫入「正規化地址」欄，方便對照原始輸入與實際用來查碼的字串。目前包含：
+            <ul>
+              <li>去除空白、標點與括號；全形數字／符號轉半形</li>
+              <li>台 → 臺（如台北市 → 臺北市）</li>
+              <li>去掉開頭已填的郵遞區號（3／5／6 碼）</li>
+              <li>縣市簡稱與舊名對應（北市、台北縣 → 新北市等）</li>
+              <li>舊鄉鎮市改制（鳳山市 → 高雄市鳳山區、板橋市 → 新北市板橋區等）</li>
+              <li>國字／大寫門牌轉阿拉伯數字（一五七號 → 157號、之三 → 之3、第十二樓 → 12樓）</li>
+              <li>門牌格式統一（216-1 → 216之1號、12F → 12樓）</li>
+              <li>路名別名（台灣大道 → 臺灣大道）</li>
+              <li>安全剝離村里／鄰（不誤傷「仁里路」等路名）</li>
+              <li>基隆／新竹／嘉義缺行政區時，依路名推論行政區</li>
+            </ul>
+            <p style="margin:10px 0 0">例：<span class="ex">鳳山市光復路１５７號</span> → <span class="ex">高雄市鳳山區光復路157號</span></p>
+          </div>
+        </details>
       </div>
 
       <div id="dashboard" class="panel" style="margin-top:18px; margin-bottom:0">
