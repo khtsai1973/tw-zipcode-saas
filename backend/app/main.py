@@ -30,7 +30,7 @@ RESULTS.mkdir(parents=True, exist_ok=True)
 JOBS: dict[str, dict] = {}
 JOBS_LOCK = threading.Lock()
 
-app = FastAPI(title="台灣 3+3 郵遞區號查詢", version="0.6.0")
+app = FastAPI(title="台灣 3+3 郵遞區號查詢", version="0.6.1")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -38,6 +38,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def disable_html_cache(request, call_next):
+    """避免瀏覽器快取舊版首頁，把非同步任務初始狀態誤顯示成「完成 0 筆」。"""
+    response = await call_next(request)
+    path = request.url.path
+    ctype = (response.headers.get("content-type") or "").lower()
+    if path in {"/", "/index.html"} or "text/html" in ctype:
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
 
 
 class LookupRequest(BaseModel):
@@ -123,7 +136,7 @@ def health():
     return {
         "ok": True,
         "service": "tw-zipcode-saas",
-        "version": "0.6.0",
+        "version": "0.6.1",
         "street_rules": meta["street_rules"],
         "bulk_rules": meta["bulk_rules"],
         "post_ws": True,
