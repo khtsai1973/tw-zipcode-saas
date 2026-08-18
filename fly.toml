@@ -1,0 +1,18 @@
+# fly.io 設定（執行 fly launch / fly deploy 時可覆寫）
+app = 'tw-zipcode-saas'
+primary_region = 'nrt'
+
+[build]
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+[[vm]]
+  memory = '512mb'
+  cpu_kind = 'shared'
+  cpus = 1

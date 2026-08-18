@@ -1,0 +1,26 @@
+[
+  {
+    "input": "新竹市光復路二段101號",
+    "zipcode": "300044",
+    "district": "東區",
+    "normalized": "新竹市東區光復路二段101號",
+    "source": "cache",
+    "district_is_null": false
+  },
+  {
+    "input": "基隆市仁一路10號",
+    "zipcode": "200041",
+    "district": "仁愛區",
+    "normalized": "基隆市仁愛區仁一路10號",
+    "source": "local",
+    "district_is_null": false
+  },
+  {
+    "input": "嘉義市中正路100號",
+    "zipcode": "600141",
+    "district": "西區",
+    "normalized": "嘉義市西區中正路100號",
+    "source": "local",
+    "district_is_null": false
+  }
+]

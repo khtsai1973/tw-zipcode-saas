@@ -1,0 +1,12 @@
+# https://render.com — 連接此 repo 後選 Docker 部署即可
+services:
+  - type: web
+    name: tw-zipcode-saas
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: POST_WS_ENABLED
+        value: "1"
+      - key: PYTHONPATH
+        value: /app/backend
