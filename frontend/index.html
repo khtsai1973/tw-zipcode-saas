@@ -386,7 +386,7 @@
           <span class="file-name" id="fileName">支援 .csv / .xlsx / .xls / .ods，最多 1,000 筆</span>
           <input id="file" type="file" accept=".csv,.xlsx,.xls,.ods" />
         </div>
-        <p class="hint" style="margin:0">需含名稱與地址欄位；其餘欄位原樣保留。輸出會多「正規化地址」「3+3郵遞區號」「查詢狀態」。</p>
+        <p class="hint" style="margin:0">需含名稱與地址欄位；其餘欄位原樣保留。輸出會多「正規化地址」「3+3郵遞區號」「查詢狀態」「查詢原因」。</p>
 
         <details class="norm-help">
           <summary>「正規化地址」做了哪些處理？</summary>
@@ -405,6 +405,23 @@
               <li>基隆／新竹／嘉義缺行政區時，依路名推論行政區</li>
             </ul>
             <p style="margin:10px 0 0">例：<span class="ex">鳳山市光復路１５７號</span> → <span class="ex">高雄市鳳山區光復路157號</span></p>
+          </div>
+        </details>
+
+        <details class="norm-help">
+          <summary>「查詢原因」如何區分？</summary>
+          <div class="body">
+            不再只顯示「查詢失敗」，結果會標明原因，例如：
+            <ul>
+              <li>地址格式錯誤</li>
+              <li>缺少縣市</li>
+              <li>缺少路段</li>
+              <li>查無對應路段</li>
+              <li>門牌無法判斷</li>
+              <li>外部服務逾時</li>
+              <li>API錯誤</li>
+              <li>使用本地Fallback成功（官方服務未命中，改以本地路段成功）</li>
+            </ul>
           </div>
         </details>
       </div>
@@ -437,11 +454,12 @@
           <table>
             <thead>
               <tr>
-                <th style="width:4rem">列</th>
-                <th style="width:7rem">狀態</th>
-                <th style="width:8rem">名稱</th>
+                <th style="width:3.5rem">列</th>
+                <th style="width:5.5rem">狀態</th>
+                <th style="width:8rem">原因</th>
+                <th style="width:6.5rem">名稱</th>
                 <th>地址</th>
-                <th style="width:7rem">3+3</th>
+                <th style="width:6rem">3+3</th>
               </tr>
             </thead>
             <tbody id="anomalyBody"></tbody>
@@ -507,11 +525,12 @@
     let lastStats = {};
     let latestAnomalies = [];
 
-    function statusTag(status, source) {
-      const map = { exact: "精確", district: "行政區", not_found: "查無" };
+    function statusTag(status, source, reasonCode) {
+      const map = { exact: "精確", district: "需確認", not_found: "查無" };
       let label = map[status] || status;
       if (source === "bulk") label = "大宗專用";
-      const cls = source === "bulk" ? "exact" : status;
+      if (source === "local" || reasonCode === "local_fallback_ok") label = "本地備援";
+      const cls = source === "bulk" || source === "local" ? "exact" : status;
       return `<span class="tag ${cls}">${label}</span>`;
     }
 
@@ -578,13 +597,14 @@
       anomalyWrap.classList.toggle("show", show);
       if (!show) return;
       if (!latestAnomalies.length) {
-        anomalyBody.innerHTML = `<tr><td colspan="5" class="meta">目前沒有異常資料</td></tr>`;
+        anomalyBody.innerHTML = `<tr><td colspan="6" class="meta">目前沒有異常資料</td></tr>`;
         return;
       }
       anomalyBody.innerHTML = latestAnomalies.map((row) => `
         <tr>
           <td>${row.row}</td>
           <td><span class="pill ${row.category || ""}">${row.status || ""}</span></td>
+          <td>${escapeHtml(row.reason || row.status_raw || "—")}</td>
           <td>${escapeHtml(row.name || "—")}</td>
           <td>${escapeHtml(row.address || row.normalized || "—")}</td>
           <td>${escapeHtml(row.zipcode || "—")}</td>
@@ -724,8 +744,9 @@
         if (!res.ok) throw new Error(data.detail || "查詢失敗");
         box.className = "result show";
         box.innerHTML = `
-          <div class="zip">${data.zipcode || "—"} ${statusTag(data.status, data.source)}</div>
+          <div class="zip">${data.zipcode || "—"} ${statusTag(data.status, data.source, data.reason_code)}</div>
           <div class="meta">
+            原因：${data.reason || "—"}<br/>
             正規化：${data.normalized || "—"}<br/>
             來源：${data.source || "—"}　${data.message || ""}
           </div>`;

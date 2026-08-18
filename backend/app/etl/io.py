@@ -9,6 +9,7 @@ SUPPORTED_EXT = {".csv", ".xlsx", ".xls", ".ods"}
 ZIP_COL = "3+3郵遞區號"
 NORM_COL = "正規化地址"
 STATUS_COL = "查詢狀態"
+REASON_COL = "查詢原因"
 MAX_ROWS = 1000
 
 NAME_ALIASES = {"名稱", "姓名", "收件人", "name", "Name", "客戶名稱", "聯絡人"}

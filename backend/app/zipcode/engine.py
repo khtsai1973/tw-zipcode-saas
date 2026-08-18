@@ -10,6 +10,7 @@ from .data import DISTRICT_ZIP3
 from .normalize import normalize_address
 from .parser import ParsedAddress, parse_address
 from .post_client import lookup_post
+from . import reasons as R
 from .street_store import load_street_rules, street_index
 
 
@@ -26,9 +27,20 @@ class LookupResult:
     number: int | None = None
     message: str = ""
     source: str = ""  # bulk | post_ws | cache | local | district | none
+    reason_code: str = R.UNKNOWN
+    reason: str = ""
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+
+def _set_reason(result: LookupResult, code: str, extra: str = "") -> None:
+    result.reason_code = code
+    result.reason = R.label(code)
+    if extra:
+        result.message = (
+            f"{result.message}；{extra}" if result.message else extra
+        )
 
 
 def _road_candidates(road: str) -> list[str]:
@@ -71,21 +83,39 @@ def _rule_matches_number(rule: dict, number: int | None) -> bool:
 _OFFICIAL_ONLY_CITIES = {"基隆市", "嘉義市", "新竹市"}
 
 
-def _match_local_street(parsed: ParsedAddress) -> tuple[str | None, str]:
+@dataclass
+class _LocalProbe:
+    zip6: str | None = None
+    matched_road: str = ""
+    # none | hit | road_missing | road_unmatched | number_unmatched
+    detail: str = "none"
+
+
+def _probe_local_street(parsed: ParsedAddress) -> _LocalProbe:
     if not (parsed.city and parsed.district and parsed.road):
-        return None, ""
-    # 基隆／嘉義／新竹：不使用本地示範碼，避免誤判為精確
+        return _LocalProbe(detail="road_missing" if not parsed.road else "none")
     if parsed.city in _OFFICIAL_ONLY_CITIES:
-        return None, ""
+        return _LocalProbe(detail="none")
+
     index = street_index()
+    found_rules = False
     for road in _road_candidates(parsed.road):
         rules = index.get((parsed.city, parsed.district, road))
         if not rules:
             continue
+        found_rules = True
         for rule in rules:
+            if parsed.number is None:
+                # 有路段規則但缺門牌 → 無法精準判斷
+                continue
             if _rule_matches_number(rule, parsed.number):
-                return str(rule["zip6"]), road
-    return None, ""
+                return _LocalProbe(zip6=str(rule["zip6"]), matched_road=road, detail="hit")
+        # 此路有規則但門牌未命中
+        return _LocalProbe(matched_road=road, detail="number_unmatched")
+
+    if found_rules:
+        return _LocalProbe(detail="number_unmatched")
+    return _LocalProbe(detail="road_unmatched")
 
 
 def _base_result(address: str, normalized: str, parsed: ParsedAddress) -> LookupResult:
@@ -100,7 +130,41 @@ def _base_result(address: str, normalized: str, parsed: ParsedAddress) -> Lookup
         road=parsed.road,
         number=parsed.number,
         source="none",
+        reason_code=R.UNKNOWN,
+        reason=R.label(R.UNKNOWN),
     )
+
+
+def _structural_reason(parsed: ParsedAddress, normalized: str) -> str | None:
+    """結構性問題優先於外部服務問題。"""
+    if not (normalized or "").strip():
+        return R.FORMAT_ERROR
+    if not parsed.city:
+        # 正規化後仍無縣市：偏格式或內容無法辨識
+        if not re.search(r"[縣市]", normalized):
+            return R.MISSING_CITY
+        return R.FORMAT_ERROR
+    if not parsed.road:
+        return R.MISSING_ROAD
+    return None
+
+
+def _service_or_match_reason(
+    *,
+    parsed: ParsedAddress,
+    post_error_kind: str,
+    local: _LocalProbe,
+) -> str:
+    """在結構完整時，依外部服務／本地比對結果判定原因。"""
+    if post_error_kind == "timeout":
+        return R.EXTERNAL_TIMEOUT
+    if post_error_kind == "api_error":
+        return R.API_ERROR
+    if parsed.number is None or local.detail == "number_unmatched":
+        return R.HOUSE_NUMBER_UNKNOWN
+    if local.detail in {"road_unmatched", "road_missing", "none"}:
+        return R.NO_ROAD_MATCH
+    return R.NO_ROAD_MATCH
 
 
 def lookup_address(
@@ -128,6 +192,7 @@ def lookup_address(
         else ""
     )
 
+    # 結構性早退（仍允許大宗／郵政嘗試較少？大宗可能靠名稱。先跑大宗）
     # 1) 大宗郵件專用郵遞區號（正規化後優先）
     bulk_query_addr = parsed.normalized or normalized
     bulk = lookup_bulk(bulk_query_addr, name=name)
@@ -140,7 +205,11 @@ def lookup_address(
         result.source = "bulk"
         result.message = bulk.note or "大宗郵件專用郵遞區號"
         result.normalized = bulk.matched_address or result.normalized
+        _set_reason(result, R.BULK_OK)
         return result
+
+    post_error_kind = ""
+    last_msg = ""
 
     # 2) 中華郵政官方查詢
     if use_post_ws:
@@ -162,7 +231,6 @@ def lookup_address(
             if c and c not in candidates:
                 candidates.append(c)
 
-        last_msg = ""
         for query_addr in candidates:
             post = lookup_post(query_addr)
             if post.ok and post.zipcode:
@@ -177,27 +245,53 @@ def lookup_address(
                     result.normalized = normalize_address(post.normalized)
                 else:
                     result.normalized = parsed.normalized or normalized
+                _set_reason(result, R.POST_OK)
                 return result
             if post.message:
                 last_msg = post.message
+            # 保留最嚴重的錯誤類型
+            if post.error_kind == "timeout":
+                post_error_kind = "timeout"
+            elif post.error_kind == "api_error" and post_error_kind != "timeout":
+                post_error_kind = "api_error"
+            elif post.error_kind and not post_error_kind:
+                post_error_kind = post.error_kind
         if last_msg:
             result.message = last_msg
 
     # 3) 本地路段備援
-    zip6, matched_road = _match_local_street(parsed)
-    if zip6:
+    local = _probe_local_street(parsed)
+    if local.zip6:
         key = f"{parsed.city}{parsed.district}" if parsed.city and parsed.district else ""
-        result.zipcode = zip6
-        result.zip3 = zip6[:3]
+        result.zipcode = local.zip6
+        result.zip3 = local.zip6[:3]
         result.status = "exact"
         result.source = "local"
-        result.message = f"本地路段命中（{matched_road}）"
+        result.message = f"本地路段命中（{local.matched_road}）"
         if inferred_note:
             result.message = f"{inferred_note}；{result.message}"
         result.normalized = parsed.normalized or normalized
         if key and key in DISTRICT_ZIP3:
             result.zip3 = DISTRICT_ZIP3[key]
+        _set_reason(result, R.LOCAL_FALLBACK_OK)
         return result
+
+    # 結構性原因（缺縣市／路段／格式）
+    structural = _structural_reason(parsed, normalized)
+    match_reason = _service_or_match_reason(
+        parsed=parsed,
+        post_error_kind=post_error_kind,
+        local=local,
+    )
+    # 結構問題優先；但外部逾時／API 錯誤在結構完整時優先標出
+    if structural in {R.FORMAT_ERROR, R.MISSING_CITY, R.MISSING_ROAD}:
+        final_reason = structural
+    elif post_error_kind in {"timeout", "api_error"}:
+        final_reason = match_reason
+    elif structural:
+        final_reason = structural
+    else:
+        final_reason = match_reason
 
     # 4) 行政區備援
     if parsed.city and parsed.district:
@@ -208,14 +302,15 @@ def lookup_address(
             result.zip3 = zip3
             result.status = "district"
             result.source = "district"
-            result.message = (result.message + "；" if result.message else "") + (
-                "僅行政區前3碼，後3碼000（官方服務未命中或不可用）"
-            )
+            note = "僅行政區前3碼，後3碼000（官方服務未命中或不可用）"
+            result.message = (result.message + "；" if result.message else "") + note
             result.normalized = parsed.normalized or normalized
+            _set_reason(result, final_reason)
             return result
 
     result.message = result.message or "無法解析或查詢郵遞區號"
     result.normalized = normalized
+    _set_reason(result, final_reason)
     return result
 
 

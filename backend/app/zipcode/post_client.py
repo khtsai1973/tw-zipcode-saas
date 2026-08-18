@@ -32,6 +32,27 @@ class PostLookup:
     source: str = "post_ws"
     ok: bool = False
     message: str = ""
+    # "" | timeout | api_error | no_result | disabled
+    error_kind: str = ""
+
+
+def _classify_exc(exc: BaseException) -> str:
+    """將例外歸類為 timeout 或 api_error。"""
+    import socket
+
+    name = type(exc).__name__.lower()
+    text = str(exc).lower()
+    if isinstance(exc, TimeoutError) or isinstance(exc, socket.timeout):
+        return "timeout"
+    if "timed out" in text or "timeout" in name:
+        return "timeout"
+    if isinstance(exc, urllib.error.URLError) and getattr(exc, "reason", None) is not None:
+        reason = exc.reason
+        if isinstance(reason, (TimeoutError, socket.timeout)):
+            return "timeout"
+        if "timed out" in str(reason).lower():
+            return "timeout"
+    return "api_error"
 
 
 def _ensure_cache() -> sqlite3.Connection:
@@ -71,6 +92,7 @@ def _cache_get(addr_key: str) -> PostLookup | None:
         source="cache",
         ok=bool(zipcode and re.fullmatch(r"\d{6}", zipcode or "")),
         message="快取命中",
+        error_kind="",
     )
 
 
@@ -149,7 +171,9 @@ def _xml_text(root: ET.Element, path: str) -> str | None:
 def get_zip_address(addr_str: str) -> PostLookup:
     """呼叫 GetZipAddress，回傳 JSON: {Address, ZipCode}。"""
     if not ENABLED:
-        return PostLookup(None, None, "", message="郵政 WS 已停用", ok=False)
+        return PostLookup(
+            None, None, "", message="郵政 WS 已停用", ok=False, error_kind="disabled"
+        )
 
     key = addr_str.strip()
     cached = _cache_get(key)
@@ -188,20 +212,32 @@ def get_zip_address(addr_str: str) -> PostLookup:
             source="post_ws",
             ok=ok,
             message="中華郵政 GetZipAddress" if ok else "郵政服務無有效郵遞區號",
+            error_kind="" if ok else "no_result",
         )
         if ok:
             _cache_set(key, out)
         return out
     except urllib.error.HTTPError as exc:
-        return PostLookup(None, None, "", ok=False, message=f"郵政 WS HTTP {exc.code}")
+        return PostLookup(
+            None,
+            None,
+            "",
+            ok=False,
+            message=f"郵政 WS HTTP {exc.code}",
+            error_kind="api_error",
+        )
     except Exception as exc:  # noqa: BLE001
-        return PostLookup(None, None, "", ok=False, message=f"郵政 WS 錯誤：{exc}")
+        kind = _classify_exc(exc)
+        label = "外部服務逾時" if kind == "timeout" else f"郵政 WS 錯誤：{exc}"
+        return PostLookup(None, None, "", ok=False, message=label, error_kind=kind)
 
 
 def get_zip_code(addr_str: str) -> PostLookup:
     """呼叫 GetZipCode（備援）。"""
     if not ENABLED:
-        return PostLookup(None, None, "", message="郵政 WS 已停用", ok=False)
+        return PostLookup(
+            None, None, "", message="郵政 WS 已停用", ok=False, error_kind="disabled"
+        )
 
     key = addr_str.strip()
     cached = _cache_get(key)
@@ -232,12 +268,15 @@ def get_zip_code(addr_str: str) -> PostLookup:
             source="post_ws",
             ok=ok,
             message="中華郵政 GetZipCode" if ok else "郵政服務無有效郵遞區號",
+            error_kind="" if ok else "no_result",
         )
         if ok:
             _cache_set(key, out)
         return out
     except Exception as exc:  # noqa: BLE001
-        return PostLookup(None, None, "", ok=False, message=f"郵政 WS 錯誤：{exc}")
+        kind = _classify_exc(exc)
+        label = "外部服務逾時" if kind == "timeout" else f"郵政 WS 錯誤：{exc}"
+        return PostLookup(None, None, "", ok=False, message=label, error_kind=kind)
 
 
 def lookup_post(addr_str: str) -> PostLookup:
@@ -248,10 +287,11 @@ def lookup_post(addr_str: str) -> PostLookup:
     second = get_zip_code(addr_str)
     if second.ok:
         return second
-    # 回傳較有資訊的那筆
-    if first.message:
-        return first
-    return second
+    # 優先回傳較嚴重的錯誤（timeout / api_error），再回較有訊息的那筆
+    severity = {"timeout": 3, "api_error": 2, "disabled": 1, "no_result": 0, "": 0}
+    picks = [first, second]
+    picks.sort(key=lambda p: (severity.get(p.error_kind, 0), bool(p.message)), reverse=True)
+    return picks[0]
 
 
 def _xml_escape(value: str) -> str:
