@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from starlette.background import BackgroundTask
 
 from app.etl.io import MAX_ROWS, SUPPORTED_EXT, read_table, resolve_output_path, write_table
 from app.etl.transform import enrich_rows
@@ -30,7 +31,7 @@ RESULTS.mkdir(parents=True, exist_ok=True)
 JOBS: dict[str, dict] = {}
 JOBS_LOCK = threading.Lock()
 
-app = FastAPI(title="台灣 3+3 郵遞區號查詢", version="0.6.1")
+app = FastAPI(title="台灣 3+3 郵遞區號查詢", version="0.6.2")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -82,6 +83,15 @@ def _update_job(job_id: str, **fields) -> None:
         job.update(fields)
 
 
+def _safe_unlink(path: Path | None) -> None:
+    if not path:
+        return
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
 def _run_job(
     job_id: str,
     upload_path: Path,
@@ -128,6 +138,9 @@ def _run_job(
         )
     except Exception as exc:  # noqa: BLE001
         _update_job(job_id, status="failed", error=str(exc))
+    finally:
+        # 上傳原檔僅暫存，處理結束即清除（不論成功或失敗）
+        _safe_unlink(upload_path)
 
 
 @app.get("/api/health")
@@ -136,7 +149,7 @@ def health():
     return {
         "ok": True,
         "service": "tw-zipcode-saas",
-        "version": "0.6.1",
+        "version": "0.6.2",
         "street_rules": meta["street_rules"],
         "bulk_rules": meta["bulk_rules"],
         "post_ws": True,
@@ -209,10 +222,17 @@ def download_job(job_id: str):
         if job.get("status") != "completed" or not job.get("result_file"):
             raise HTTPException(400, "任務尚未完成")
         result_name = job["result_file"]
+        # 下載後即清除結果檔與任務紀錄，避免檔案留存
+        job["result_file"] = None
+        job["status"] = "downloaded"
     path = RESULTS / result_name
     if not path.exists():
         raise HTTPException(404, "結果檔不存在")
-    return FileResponse(path, filename=path.name)
+    return FileResponse(
+        path,
+        filename=path.name,
+        background=BackgroundTask(_safe_unlink, path),
+    )
 
 
 if FRONTEND.exists():
