@@ -7,10 +7,11 @@ from dataclasses import asdict, dataclass
 
 from .bulk_store import bulk_rule_count, lookup_bulk
 from .data import DISTRICT_ZIP3
-from .normalize import normalize_address
+from .normalize import normalize_address, normalize_with_meta
 from .parser import ParsedAddress, parse_address
 from .post_client import lookup_post
 from . import reasons as R
+from .address_remap import remap_rule_count
 from .street_store import load_street_rules, street_index
 
 
@@ -30,6 +31,8 @@ class LookupResult:
     reason_code: str = R.UNKNOWN
     reason: str = ""
     reordered: bool = False
+    old_address_corrected: bool = False
+    input_normalized: str = ""
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -119,6 +122,13 @@ def _probe_local_street(parsed: ParsedAddress) -> _LocalProbe:
     return _LocalProbe(detail="road_unmatched")
 
 
+def _addresses_differ(a: str, b: str) -> bool:
+    """比對兩地址是否實質不同（忽略空白）。"""
+    left = re.sub(r"\s+", "", (a or "").replace("台", "臺"))
+    right = re.sub(r"\s+", "", (b or "").replace("台", "臺"))
+    return bool(left and right and left != right)
+
+
 def _base_result(address: str, normalized: str, parsed: ParsedAddress) -> LookupResult:
     return LookupResult(
         address=address,
@@ -134,6 +144,7 @@ def _base_result(address: str, normalized: str, parsed: ParsedAddress) -> Lookup
         reason_code=R.UNKNOWN,
         reason=R.label(R.UNKNOWN),
         reordered=bool(getattr(parsed, "reordered", False)),
+        input_normalized=normalized or "",
     )
 
 
@@ -184,17 +195,23 @@ def lookup_address(
     5. 行政區前3碼備援
     """
     raw = address or ""
-    normalized = normalize_address(raw)
+    meta = normalize_with_meta(raw)
+    normalized = meta.text
     parsed = parse_address(normalized)
     result = _base_result(raw, normalized, parsed)
     result.normalized = parsed.normalized or normalized
-    inferred_note = (
-        f"已推論行政區：{parsed.district}"
-        if parsed.district_inferred and parsed.district
-        else ""
-    )
-    reorder_note = "已重排地址元件順序" if parsed.reordered else ""
-    prefix_notes = "；".join(n for n in (reorder_note, inferred_note) if n)
+
+    notes: list[str] = []
+    if meta.remapped:
+        result.old_address_corrected = True
+        notes.append(meta.remap_note or "已套用門牌整編對照")
+    if meta.township_upgraded:
+        notes.append("舊行政區／縣市名已改制")
+    if parsed.reordered:
+        notes.append("已重排地址元件順序")
+    if parsed.district_inferred and parsed.district:
+        notes.append(f"已推論行政區：{parsed.district}")
+    prefix_notes = "；".join(notes)
 
     # 結構性早退（仍允許大宗／郵政嘗試較少？大宗可能靠名稱。先跑大宗）
     # 1) 大宗郵件專用郵遞區號（正規化後優先）
@@ -246,10 +263,36 @@ def lookup_address(
                 if prefix_notes:
                     result.message = f"{prefix_notes}；{result.message}"
                 if post.normalized:
-                    result.normalized = normalize_address(post.normalized)
+                    post_norm = normalize_address(post.normalized)
+                    # 中華郵政回傳地址與輸入正規化不同 → 視為舊址／非標準址改正
+                    if _addresses_differ(parsed.normalized or normalized, post_norm):
+                        result.old_address_corrected = True
+                        result.normalized = post_norm
+                        fix_note = f"舊址已依中華郵政改正為：{post_norm}"
+                        result.message = (
+                            f"{result.message}；{fix_note}"
+                            if result.message
+                            else fix_note
+                        )
+                        _set_reason(result, R.OLD_ADDRESS_CORRECTED)
+                    else:
+                        result.normalized = post_norm
+                        if meta.remapped:
+                            result.old_address_corrected = True
+                            _set_reason(result, R.OLD_ADDRESS_CORRECTED)
+                        elif meta.township_upgraded:
+                            _set_reason(result, R.ADMIN_UPGRADED)
+                        else:
+                            _set_reason(result, R.POST_OK)
                 else:
                     result.normalized = parsed.normalized or normalized
-                _set_reason(result, R.POST_OK)
+                    if meta.remapped:
+                        result.old_address_corrected = True
+                        _set_reason(result, R.OLD_ADDRESS_CORRECTED)
+                    elif meta.township_upgraded:
+                        _set_reason(result, R.ADMIN_UPGRADED)
+                    else:
+                        _set_reason(result, R.POST_OK)
                 return result
             if post.message:
                 last_msg = post.message
@@ -326,4 +369,5 @@ def stats() -> dict:
     return {
         "street_rules": street_rule_count(),
         "bulk_rules": bulk_rule_count(),
+        "address_remap_rules": remap_rule_count(),
     }

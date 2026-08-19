@@ -311,65 +311,85 @@ def _apply_city_aliases(text: str) -> str:
     return text
 
 
-def _apply_township_upgrades(text: str) -> str:
-    """舊鄉鎮市 → 新直轄市行政區。例：鳳山市 → 高雄市鳳山區（含錯序出現在字串中後段）。"""
+def _apply_township_upgrades(text: str) -> tuple[str, bool]:
+    """舊鄉鎮市 → 新直轄市行政區。回傳 (文字, 是否改制)。"""
+    original = text
     # 特例：舊縣轄「桃園市」
     if text.startswith("桃園縣桃園市"):
-        return "桃園市桃園區" + text[len("桃園縣桃園市") :]
+        return "桃園市桃園區" + text[len("桃園縣桃園市") :], True
     if text.startswith("桃園市桃園市"):
-        return "桃園市桃園區" + text[len("桃園市桃園市") :]
+        return "桃園市桃園區" + text[len("桃園市桃園市") :], True
 
     for old, full in _SORTED_TOWNSHIPS:
         city = _city_prefix(full)
         new_district = full[len(city) :]
         old_county = city.replace("市", "縣") if city.endswith("市") else ""
 
-        # 高雄市鳳山市 / 高雄縣鳳山市 / 鳳山市（開頭）
         for prefix in (city, old_county, ""):
             token = f"{prefix}{old}"
             if text.startswith(token):
-                return full + text[len(token) :]
+                return full + text[len(token) :], True
 
-        # 縣市已正確，僅行政區仍是舊名
         if city and text.startswith(city):
             rest = text[len(city) :]
             if rest.startswith(old):
-                return city + new_district + rest[len(old) :]
+                return city + new_district + rest[len(old) :], True
 
-    # 錯序：舊鄉鎮市名出現在字串中後段（如「文化路…板橋市」）
+    # 錯序：舊鄉鎮市名出現在字串中後段
+    changed = False
     for old, full in _SORTED_TOWNSHIPS:
         if old not in text:
             continue
         if full in text:
-            # 已含完整新政區時，去掉殘留舊名
             text = text.replace(old, "")
+            changed = True
             continue
         text = text.replace(old, full, 1)
+        changed = True
+    return text, changed or text != original
 
-    return text
+
+from dataclasses import dataclass
 
 
-def normalize_address(address: str) -> str:
-    """清洗並正規化台灣地址字串（查詢前必跑）。"""
+@dataclass
+class NormalizeMeta:
+    text: str
+    township_upgraded: bool = False
+    remapped: bool = False
+    remap_note: str = ""
+
+
+def normalize_with_meta(address: str) -> NormalizeMeta:
+    """清洗並正規化；附帶舊行政區改制／門牌整編對照資訊。"""
+    from .address_remap import apply_address_remap
+
     if not address:
-        return ""
+        return NormalizeMeta(text="")
 
     text = str(address).strip()
-    # 全形數字 / 空白 → 半形
+    remapped = False
+    remap_note = ""
+
+    # 門牌整編對照（完整字串命中）優先
+    text, remapped, remap_note = apply_address_remap(text)
+
     text = text.translate(_TRANS)
     text = text.replace("台", "臺")
     text = _ZIP_PREFIX.sub("", text)
 
+    before_city = text
     text = _apply_city_aliases(text)
-    text = _apply_township_upgrades(text)
+    city_aliased = text != before_city
+
+    text, township_upgraded = _apply_township_upgrades(text)
+    township_upgraded = township_upgraded or city_aliased
 
     for src, dst in ROAD_ALIASES.items():
         text = text.replace(src.replace("台", "臺"), dst)
         text = text.replace(src, dst)
 
-    # 國字／大寫數字 → 半形阿拉伯數字（一五七號→157號）
     text = _replace_chinese_door_numbers(text)
-    # 12號之三 → 12號之3
     text = re.sub(
         rf"之([{re.escape(_CN_NUM_CHARS)}]+)(?=號|$)",
         lambda m: (
@@ -379,7 +399,6 @@ def normalize_address(address: str) -> str:
         ),
         text,
     )
-    # 第十二樓 → 12樓
     text = re.sub(
         rf"第([{re.escape(_CN_NUM_CHARS)}]+)樓",
         lambda m: (
@@ -397,4 +416,14 @@ def normalize_address(address: str) -> str:
     text = re.sub(r"[，,。.、；;]+", "", text)
     text = re.sub(r"[()（）\[\]【】]", "", text)
     text = re.sub(r"號+", "號", text)
-    return text.strip()
+    return NormalizeMeta(
+        text=text.strip(),
+        township_upgraded=township_upgraded,
+        remapped=remapped,
+        remap_note=remap_note,
+    )
+
+
+def normalize_address(address: str) -> str:
+    """清洗並正規化台灣地址字串（查詢前必跑）。"""
+    return normalize_with_meta(address).text

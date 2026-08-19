@@ -15,6 +15,8 @@ POST_OK = "post_ok"
 BULK_OK = "bulk_ok"
 DISTRICT_FALLBACK = "district_fallback"
 BLANK_ADDRESS = "blank_address"
+OLD_ADDRESS_CORRECTED = "old_address_corrected"
+ADMIN_UPGRADED = "admin_upgraded"
 UNKNOWN = "unknown"
 
 REASON_LABELS: dict[str, str] = {
@@ -30,6 +32,8 @@ REASON_LABELS: dict[str, str] = {
     BULK_OK: "大宗郵件專用",
     DISTRICT_FALLBACK: "僅行政區備援",
     BLANK_ADDRESS: "地址格式錯誤",
+    OLD_ADDRESS_CORRECTED: "舊址已改正",
+    ADMIN_UPGRADED: "舊行政區已改制",
     UNKNOWN: "無法判斷原因",
 }
 
