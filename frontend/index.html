@@ -6,6 +6,8 @@
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <title>3+3 郵遞區號｜批次地址處理</title>
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="apple-touch-icon" href="/logo-33.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
@@ -42,12 +44,26 @@
       padding: 12px 0 28px;
       animation: rise 0.55s ease both;
     }
+    .brand-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin: 0 0 18px;
+    }
+    .brand-mark {
+      width: 56px;
+      height: 56px;
+      border-radius: 14px;
+      object-fit: cover;
+      flex-shrink: 0;
+      box-shadow: 0 8px 20px rgba(10, 77, 56, 0.12);
+    }
     .brand {
       font-family: "Fraunces", "Noto Sans TC", serif;
       font-size: clamp(2rem, 5vw, 2.85rem);
       font-weight: 700;
       letter-spacing: -0.03em;
-      margin: 0 0 18px;
+      margin: 0;
       line-height: 1.15;
       color: var(--accent-deep);
     }
@@ -390,7 +406,10 @@
 <body>
   <div class="wrap">
     <header class="hero">
-      <p class="brand">3+3 郵遞區號</p>
+      <div class="brand-row">
+        <img class="brand-mark" src="/logo-33.png" width="56" height="56" alt="3+3 郵遞區號" />
+        <p class="brand">3+3 郵遞區號</p>
+      </div>
       <h1>大量地址不用逐筆查詢</h1>
       <p class="lead">上傳 Excel / CSV，自動進行地址正規化、3+3郵遞區號查詢與結果標記，完成後直接下載處理結果。</p>
 
@@ -513,7 +532,7 @@
 
     <footer>
       資料來源：本地路段庫 + 中華郵政 3+3 Web Service。查詢結果會快取以加速批次。正式大量商業用途請遵循中華郵政授權與介接規範。
-      <span style="margin-left:8px;opacity:0.7">UI v0.6.5</span>
+      <span style="margin-left:8px;opacity:0.7">UI v0.6.6</span>
     </footer>
   </div>
 

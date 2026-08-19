@@ -31,7 +31,7 @@ RESULTS.mkdir(parents=True, exist_ok=True)
 JOBS: dict[str, dict] = {}
 JOBS_LOCK = threading.Lock()
 
-app = FastAPI(title="台灣 3+3 郵遞區號查詢", version="0.6.5")
+app = FastAPI(title="台灣 3+3 郵遞區號查詢", version="0.6.6")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -149,7 +149,7 @@ def health():
     return {
         "ok": True,
         "service": "tw-zipcode-saas",
-        "version": "0.6.5",
+        "version": "0.6.6",
         "street_rules": meta["street_rules"],
         "bulk_rules": meta["bulk_rules"],
         "post_ws": True,
