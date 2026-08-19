@@ -29,6 +29,7 @@ class LookupResult:
     source: str = ""  # bulk | post_ws | cache | local | district | none
     reason_code: str = R.UNKNOWN
     reason: str = ""
+    reordered: bool = False
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -132,6 +133,7 @@ def _base_result(address: str, normalized: str, parsed: ParsedAddress) -> Lookup
         source="none",
         reason_code=R.UNKNOWN,
         reason=R.label(R.UNKNOWN),
+        reordered=bool(getattr(parsed, "reordered", False)),
     )
 
 
@@ -191,6 +193,8 @@ def lookup_address(
         if parsed.district_inferred and parsed.district
         else ""
     )
+    reorder_note = "已重排地址元件順序" if parsed.reordered else ""
+    prefix_notes = "；".join(n for n in (reorder_note, inferred_note) if n)
 
     # 結構性早退（仍允許大宗／郵政嘗試較少？大宗可能靠名稱。先跑大宗）
     # 1) 大宗郵件專用郵遞區號（正規化後優先）
@@ -239,8 +243,8 @@ def lookup_address(
                 result.status = "exact"
                 result.source = post.source
                 result.message = post.message or "中華郵政查詢成功"
-                if inferred_note:
-                    result.message = f"{inferred_note}；{result.message}"
+                if prefix_notes:
+                    result.message = f"{prefix_notes}；{result.message}"
                 if post.normalized:
                     result.normalized = normalize_address(post.normalized)
                 else:
@@ -268,8 +272,8 @@ def lookup_address(
         result.status = "exact"
         result.source = "local"
         result.message = f"本地路段命中（{local.matched_road}）"
-        if inferred_note:
-            result.message = f"{inferred_note}；{result.message}"
+        if prefix_notes:
+            result.message = f"{prefix_notes}；{result.message}"
         result.normalized = parsed.normalized or normalized
         if key and key in DISTRICT_ZIP3:
             result.zip3 = DISTRICT_ZIP3[key]

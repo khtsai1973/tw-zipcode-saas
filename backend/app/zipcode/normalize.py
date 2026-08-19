@@ -190,7 +190,7 @@ _TRANS = str.maketrans(
     }
 )
 
-_ZIP_PREFIX = re.compile(r"^(?:\d{3}|\d{5,6})")
+_ZIP_PREFIX = re.compile(r"^(?:\d{3}|\d{5,6})(?![號巷弄樓鄰之\d])")
 _SORTED_TOWNSHIPS = sorted(TOWNSHIP_UPGRADES.items(), key=lambda x: len(x[0]), reverse=True)
 _SORTED_CITIES = sorted(CITY_ALIASES.items(), key=lambda x: len(x[0]), reverse=True)
 
@@ -312,7 +312,7 @@ def _apply_city_aliases(text: str) -> str:
 
 
 def _apply_township_upgrades(text: str) -> str:
-    """舊鄉鎮市 → 新直轄市行政區。例：鳳山市 → 高雄市鳳山區。"""
+    """舊鄉鎮市 → 新直轄市行政區。例：鳳山市 → 高雄市鳳山區（含錯序出現在字串中後段）。"""
     # 特例：舊縣轄「桃園市」
     if text.startswith("桃園縣桃園市"):
         return "桃園市桃園區" + text[len("桃園縣桃園市") :]
@@ -324,7 +324,7 @@ def _apply_township_upgrades(text: str) -> str:
         new_district = full[len(city) :]
         old_county = city.replace("市", "縣") if city.endswith("市") else ""
 
-        # 高雄市鳳山市 / 高雄縣鳳山市 / 鳳山市
+        # 高雄市鳳山市 / 高雄縣鳳山市 / 鳳山市（開頭）
         for prefix in (city, old_county, ""):
             token = f"{prefix}{old}"
             if text.startswith(token):
@@ -335,6 +335,16 @@ def _apply_township_upgrades(text: str) -> str:
             rest = text[len(city) :]
             if rest.startswith(old):
                 return city + new_district + rest[len(old) :]
+
+    # 錯序：舊鄉鎮市名出現在字串中後段（如「文化路…板橋市」）
+    for old, full in _SORTED_TOWNSHIPS:
+        if old not in text:
+            continue
+        if full in text:
+            # 已含完整新政區時，去掉殘留舊名
+            text = text.replace(old, "")
+            continue
+        text = text.replace(old, full, 1)
 
     return text
 

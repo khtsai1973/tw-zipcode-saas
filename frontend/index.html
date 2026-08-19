@@ -420,8 +420,10 @@
               <li>路名別名（台灣大道 → 臺灣大道）</li>
               <li>安全剝離村里／鄰（不誤傷「仁里路」等路名）</li>
               <li>基隆／新竹／嘉義缺行政區時，依路名推論行政區</li>
+              <li>重新編排／錯序地址：自動抽取縣市、行政區、路、巷弄、門牌，重排為標準順序後再查詢（例：愛國東路216號臺北市大安區 → 臺北市大安區愛國東路216號）</li>
             </ul>
             <p style="margin:10px 0 0">例：<span class="ex">鳳山市光復路１５７號</span> → <span class="ex">高雄市鳳山區光復路157號</span></p>
+            <p style="margin:6px 0 0">例：<span class="ex">愛國東路216號臺北市大安區</span> → <span class="ex">臺北市大安區愛國東路216號</span></p>
           </div>
         </details>
 
@@ -506,7 +508,7 @@
 
     <footer>
       資料來源：本地路段庫 + 中華郵政 3+3 Web Service。查詢結果會快取以加速批次。正式大量商業用途請遵循中華郵政授權與介接規範。
-      <span style="margin-left:8px;opacity:0.7">UI v0.6.3</span>
+      <span style="margin-left:8px;opacity:0.7">UI v0.6.4</span>
     </footer>
   </div>
 
@@ -765,7 +767,7 @@
           <div class="zip">${data.zipcode || "—"} ${statusTag(data.status, data.source, data.reason_code)}</div>
           <div class="meta">
             原因：${data.reason || "—"}<br/>
-            正規化：${data.normalized || "—"}<br/>
+            正規化：${data.normalized || "—"}${data.reordered ? "（已重排元件順序）" : ""}<br/>
             來源：${data.source || "—"}　${data.message || ""}
           </div>`;
       } catch (err) {
