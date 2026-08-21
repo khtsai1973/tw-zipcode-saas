@@ -49,6 +49,23 @@ python ..\scripts\build_golden_dataset.py
 3. 通過 → `verified=pass`；不符 → `verified=fail` 並在 `notes` 註明正確答案
 4. 建議優先驗：臺北／新北／桃園／臺中／臺南／高雄（約 80 筆），再抽驗外縣市與異常列
 
-## 批次回歸
+## 自動評測
 
-將本 CSV 上傳正式站批次功能（需含「名稱」「地址」欄），比對輸出的 `3+3郵遞區號`、`查詢狀態`、`查詢原因` 與金標欄位。
+```bash
+cd backend
+set PYTHONPATH=.
+python ..\scripts\eval_golden_dataset.py
+```
+
+輸出目錄：`samples/golden/eval/`
+
+| 檔案 | 說明 |
+|------|------|
+| `eval_summary_latest.md` | 最新摘要（通過率／分類） |
+| `eval_report_latest.json` | 完整逐筆結果 |
+| `eval_failures_*.csv` | 失敗列明細 |
+
+評分規則：
+- **通過**：有金標的 `expected_zipcode` 與 `expected_status` 皆相符
+- **zip%**：6 碼完全相符；另計前 3 碼相符率
+- **reason%**：原因字串寬鬆比對（同義詞可過），不擋列通過

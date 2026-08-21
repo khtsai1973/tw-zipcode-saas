@@ -1,0 +1,3 @@
+﻿id,category,address,expected_zipcode,got_zipcode,expected_status,got_status,expected_reason,got_reason,got_normalized,got_source,zip_exact,status_ok,reason_ok
+G073,exact,新竹縣竹北市光明六路100號,302042,,exact,not_found,使用本地Fallback成功,查無對應路段,新竹縣竹北市光明六路100號,none,False,False,False
+G158,normalize,新竹縣竹北市莊敬東路100號,302000,,district,not_found,查無對應路段,查無對應路段,新竹縣竹北市莊敬東路100號,none,False,False,True
